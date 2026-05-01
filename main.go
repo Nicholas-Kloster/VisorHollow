@@ -20,6 +20,7 @@ func usage() {
 COMMANDS:
   hollow   Inject shellcode into a spawned target process
   check    Query Sysmon event log for post-injection detection artifacts
+  corpus   Run the full injection technique ladder and output a coverage matrix
 
 FLAGS (hollow):
   --technique   section | classic  (default: section)
@@ -37,6 +38,10 @@ EXAMPLES:
   visorhollow hollow --technique classic --target calc.exe
   visorhollow hollow --technique section --check
   visorhollow check --since 5m
+  visorhollow corpus list
+  visorhollow corpus run
+  visorhollow corpus run --tier 1-3
+  visorhollow corpus run --id T1055-04-hijack
 `)
 }
 
@@ -51,6 +56,8 @@ func main() {
 		cmd.Hollow(os.Args[2:])
 	case "check":
 		cmd.Check(os.Args[2:])
+	case "corpus":
+		cmd.Corpus(os.Args[2:])
 	case "help", "--help", "-h":
 		usage()
 	default:
