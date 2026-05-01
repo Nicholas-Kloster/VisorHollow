@@ -7,7 +7,9 @@
   github.com/Nicholas-Kloster/VisorHollow · Nuclide Research
 ```
 
-**VisorHollow** is a Go-based detection benchmark for process injection techniques on Windows x64. It executes two well-documented injection variants and then queries the Sysmon event log to determine whether your EDR/SIEM configuration caught them. Pass/fail per event ID — not theory.
+**VisorHollow** is a Go-based detection benchmark for process injection techniques on Windows x64. It executes injection variants and queries the Sysmon event log to determine whether your EDR/SIEM configuration caught them. Pass/fail per event ID — not theory.
+
+**HollowCorpus** extends this into a full 6-tier technique ladder. Run the entire ladder with one command and get a coverage matrix showing exactly which tier your detection stack stops working at.
 
 ---
 
@@ -63,6 +65,75 @@ GOOS=windows GOARCH=amd64 go build -o visorhollow.exe .
 ```
 
 Requires Go 1.21+. No CGO. Single static binary. Only dependency: `golang.org/x/sys`.
+
+---
+
+## HollowCorpus
+
+A 6-tier injection technique ladder. Each tier removes one detection signal from the previous, building from the loudest possible path to full user-mode hook bypass.
+
+### Tier ladder
+
+| Tier | Technique | APIs | Evasion added | Expected events |
+|------|-----------|------|---------------|-----------------|
+| T1 | WriteProcessMemory + CreateRemoteThread | VirtualAllocEx, WPM, CRT | — | E8, E10 |
+| T2 | NtMapViewOfSection + SetThreadContext | NtCreateSection, NtMapViewOfSection | no NtWriteVirtualMemory | E10, E25 |
+| T3 | NtMapViewOfSection + QueueUserAPC | NtCreateSection, NtMapViewOfSection, QueueUserAPC | no CreateRemoteThread | E10, E25 |
+| T4 | Thread Context Hijacking | OpenThread, SuspendThread, WPM, STC | no new process, no section object | E10 |
+| T5 | Module Stomping | VirtualProtectEx, WPM, CRT | no anonymous RWX VAD, E25 blind | E8, E10 |
+| T6 | Direct Syscall | NtCreateSection (direct), NtMapViewOfSection (direct) | ntdll user-mode hooks bypassed entirely | E10, E25 |
+
+### Commands
+
+```bash
+visorhollow corpus list                      # show all techniques with metadata
+visorhollow corpus run                       # run all 6 tiers
+visorhollow corpus run --tier 1-3            # run tiers 1-3 only
+visorhollow corpus run --id T1055-04-hijack  # run a single technique by ID
+visorhollow corpus run --target calc.exe     # use a different target process
+```
+
+### Sample output
+
+```
+  HollowCorpus run — 6 techniques — target: notepad.exe
+
+  [1/6] T1: WriteProcessMemory + CreateRemoteThread
+        E8   HIT
+        E10  HIT
+
+  [2/6] T2: NtMapViewOfSection + SetThreadContext
+        E10  HIT
+        E25  HIT
+
+  [3/6] T3: NtMapViewOfSection + QueueUserAPC
+        E10  HIT
+        E25  HIT
+
+  [4/6] T4: Thread Context Hijacking
+        E10  MISS
+
+  ...
+
+  ═══════════════════════════════════════════════════════════════════════
+  HollowCorpus Detection Coverage Matrix
+  ═══════════════════════════════════════════════════════════════════════
+  Tier  Technique                               E8    E10   E25   Score
+  ───────────────────────────────────────────────────────────────────────
+  T1    WriteProcessMemory + CreateRemoteThread  HIT   HIT   ---   2/2
+  T2    NtMapViewOfSection + SetThreadContext    ---   HIT   HIT   2/2
+  T3    NtMapViewOfSection + QueueUserAPC        ---   HIT   HIT   2/2
+  T4    Thread Context Hijacking                 ---   MISS  ---   0/1
+  T5    Module Stomping (DLL .text overwrite)    HIT   HIT   ---   2/2
+  T6    Direct Syscall (bypass ntdll hooks)      ---   MISS  MISS  0/2
+  ───────────────────────────────────────────────────────────────────────
+  Total coverage: 7/10 events detected
+  [RESULT]  First undetected tier: T4
+            Techniques at T4+ evade your current detection stack.
+  ═══════════════════════════════════════════════════════════════════════
+```
+
+**Reading the matrix:** `First undetected tier: T4` means your Sysmon/EDR config catches everything up to and including thread hijacking's expected events — but T4 itself slips through. Fix: add Event 10 coverage for `OpenProcess` with `PROCESS_ALL_ACCESS` from non-system processes, and ensure ETW Threat Intelligence is enabled for T6.
 
 ---
 

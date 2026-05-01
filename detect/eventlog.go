@@ -86,8 +86,9 @@ func expectedEvents(technique string) []expectedEvent {
 // querySysmon shells out to PowerShell Get-WinEvent to avoid requiring wevtapi bindings.
 func querySysmon(since time.Time) ([]SysmonEvent, error) {
 	// PowerShell: query Sysmon operational log for events 8/10/25 after cutoff
+	// ParseExact with InvariantCulture avoids locale-dependent date parsing failures.
 	psScript := fmt.Sprintf(`
-$since = [datetime]'%s'
+$since = [datetime]::ParseExact('%s','yyyy-MM-dd HH:mm:ss',[System.Globalization.CultureInfo]::InvariantCulture)
 Get-WinEvent -LogName 'Microsoft-Windows-Sysmon/Operational' -MaxEvents 200 -ErrorAction SilentlyContinue |
   Where-Object { $_.Id -in @(8, 10, 25) -and $_.TimeCreated -gt $since } |
   ForEach-Object { "$($_.Id)|$($_.TimeCreated.ToString('o'))|$($_.Message -replace '\n',' ')" }

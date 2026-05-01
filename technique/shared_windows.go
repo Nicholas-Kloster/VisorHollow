@@ -148,23 +148,25 @@ func suspendThread(thread windows.Handle) error {
 	return nil
 }
 
-func getThreadContext(thread windows.Handle) (*CONTEXT, error) {
-	ctx := new(CONTEXT)
-	ctx.SetFlags(CONTEXT_FULL)
+// getThreadContext returns an alignedContext whose buf field must remain reachable
+// until setThreadContext is called. Callers use ac.ctx for field access.
+func getThreadContext(thread windows.Handle) (*alignedContext, error) {
+	ac := newAlignedContext()
+	ac.ctx.SetFlags(CONTEXT_FULL)
 	r1, _, err := procGetThreadContext.Call(
 		uintptr(thread),
-		uintptr(unsafe.Pointer(ctx)),
+		uintptr(unsafe.Pointer(ac.ctx)),
 	)
 	if r1 == 0 {
 		return nil, fmt.Errorf("GetThreadContext: %w", err)
 	}
-	return ctx, nil
+	return ac, nil
 }
 
-func setThreadContext(thread windows.Handle, ctx *CONTEXT) error {
+func setThreadContext(thread windows.Handle, ac *alignedContext) error {
 	r1, _, err := procSetThreadContext.Call(
 		uintptr(thread),
-		uintptr(unsafe.Pointer(ctx)),
+		uintptr(unsafe.Pointer(ac.ctx)),
 	)
 	if r1 == 0 {
 		return fmt.Errorf("SetThreadContext: %w", err)
