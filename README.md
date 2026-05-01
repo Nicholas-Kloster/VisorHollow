@@ -269,6 +269,20 @@ msfvenom -p windows/x64/messagebox TEXT="hollow confirmed" TITLE="VisorHollow" -
 
 ---
 
+## Use with Claude Code
+
+Claude Code can cross-compile VisorHollow, interpret the HollowCorpus coverage matrix, and map detection gaps to concrete Sysmon config fixes.
+
+```
+Cross-compile VisorHollow for Windows with `GOOS=windows GOARCH=amd64 go build -o visorhollow.exe .`. Once I run it and paste the HollowCorpus coverage matrix, analyze every MISS: identify which Sysmon event ID is absent, what the missing coverage means for an attacker, and provide the exact Sysmon XML rule block that would close each gap.
+```
+
+```
+I have VisorHollow output showing T4 and T6 as the first undetected tiers. Explain the precise detection gap at each tier — what the attacker's technique removes from the signal chain — and recommend whether to address it via Sysmon config, ETW Threat Intelligence, or EDR behavioral rules.
+```
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE)
